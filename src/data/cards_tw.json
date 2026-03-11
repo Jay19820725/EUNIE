@@ -1,0 +1,14 @@
+[
+  { "id": 1, "name": "寧靜", "description": "在喧囂中尋找內心的平靜。" },
+  { "id": 2, "name": "勇氣", "description": "面對未知的力量就在你心中。" },
+  { "id": 3, "name": "流動", "description": "順應生命的節奏，不強求。" },
+  { "id": 4, "name": "覺醒", "description": "看見事物的本質，超越表象。" },
+  { "id": 5, "name": "慈悲", "description": "溫柔對待自己與他人。" },
+  { "id": 6, "name": "平衡", "description": "在動態中維持穩定的核心。" },
+  { "id": 7, "name": "信任", "description": "相信宇宙的安排。" },
+  { "id": 8, "name": "釋放", "description": "放下不再服務於你的事物。" },
+  { "id": 9, "name": "豐盛", "description": "看見生命中已有的美好。" },
+  { "id": 10, "name": "連結", "description": "萬物皆有聯繫。" },
+  { "id": 11, "name": "直覺", "description": "傾聽內在微小的聲音。" },
+  { "id": 12, "name": "重生", "description": "每一次結束都是新的開始。" }
+]

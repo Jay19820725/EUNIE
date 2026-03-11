@@ -1,0 +1,14 @@
+[
+  { "id": 1, "name": "静寂", "description": "喧騒の中で内なる平和を見つける。" },
+  { "id": 2, "name": "勇気", "description": "未知に立ち向かう力はあなたの中にあります。" },
+  { "id": 3, "name": "流動", "description": "生命のリズムに身を任せ、無理をしない。" },
+  { "id": 4, "name": "覚醒", "description": "物事の本質を見極め、表面を超越する。" },
+  { "id": 5, "name": "慈悲", "description": "自分自身と他人に優しく接する。" },
+  { "id": 6, "name": "均衡", "description": "動きの中で安定した核を維持する。" },
+  { "id": 7, "name": "信頼", "description": "宇宙の導きを信じる。" },
+  { "id": 8, "name": "解放", "description": "もはや役に立たないものを手放す。" },
+  { "id": 9, "name": "豊穣", "description": "人生にある美しさに気づく。" },
+  { "id": 10, "name": "繋がり", "description": "すべてのものは繋がっている。" },
+  { "id": 11, "name": "直感", "description": "内なる小さな声に耳を傾ける。" },
+  { "id": 12, "name": "再生", "description": "すべての終わりは新しい始まりです。" }
+]

@@ -1,0 +1,22 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500&family=Shippori+Mincho:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Noto Sans TC", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Shippori Mincho", serif;
+  
+  --color-zen-bg: #F8F9FA;
+  --color-sage: #D1E8E2;
+  --color-lavender: #E2D1F9;
+  --color-ink: #2D3436;
+}
+
+body {
+  background-color: var(--color-zen-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+.font-serif {
+  font-family: var(--font-serif);
+}
