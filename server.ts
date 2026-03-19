@@ -1480,7 +1480,9 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
-    console.log("Environment:", process.env.NODE_ENV || "development");
+  console.log("Environment:", process.env.NODE_ENV || "development");
+  console.log("Firebase API Key present:", !!process.env.VITE_FIREBASE_API_KEY);
+  console.log("Gemini API Key present:", !!process.env.GEMINI_API_KEY);
   });
 
   // Sync cards after server starts
