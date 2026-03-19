@@ -7,7 +7,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { GoogleGenAI } from "@google/genai";
-import { WORDS, IMAGES } from "./src/core/cards.js";
+import { WORDS, IMAGES } from "./src/core/cards.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,482 +35,18 @@ async function startServer() {
 
   const connectionString = isValidDbUrl(rawDbUrl) 
     ? rawDbUrl! 
-    : "postgresql://root:jQil9CxX8056ezb3INBHn4oLa7Mu2Ym1@tpe1.clusters.zeabur.com:27703/zeabur";
+    : "postgresql://root:CZqK9cHT4603gnwNJY8jiQ5Aas2MoO71@tpe1.clusters.zeabur.com:25860/zeabur";
 
   console.log("Using database connection string (masked):", connectionString.replace(/:[^:@]+@/, ":****@"));
 
   const pool = new Pool({
     connectionString,
-    ssl: false  // Zeabur PostgreSQL doesn't support SSL
+    ssl: false,  // Zeabur PostgreSQL doesn't support SSL
+    connectionTimeoutMillis: 10000, // 10 seconds timeout
   });
 
-  // Initialize database tables
-  try {
-    const client = await pool.connect();
-    console.log("Connected to PostgreSQL");
-    
-    await client.query(`
-      CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
-      -- Users table
-      CREATE TABLE IF NOT EXISTS users (
-        uid TEXT PRIMARY KEY,
-        email TEXT,
-        display_name TEXT,
-        photo_url TEXT,
-        role TEXT DEFAULT 'free_member',
-        register_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        subscription_status TEXT DEFAULT 'none',
-        last_login TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Ensure columns exist if table was created earlier
-      DO $$ 
-      BEGIN 
-        BEGIN
-          ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'free_member';
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-        BEGIN
-          ALTER TABLE users ADD COLUMN subscription_status TEXT DEFAULT 'none';
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-        BEGIN
-          ALTER TABLE users ADD COLUMN settings JSONB DEFAULT '{"daily_reminder": false, "dark_mode": false, "newsletter": false}';
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-      END $$;
-
-      -- Energy Journal table
-      CREATE TABLE IF NOT EXISTS energy_journal (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
-        emotion_tag TEXT NOT NULL,
-        insight TEXT NOT NULL,
-        intention TEXT NOT NULL,
-        date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Sessions table
-      CREATE TABLE IF NOT EXISTS sessions (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
-        session_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        image_cards JSONB DEFAULT '[]',
-        word_cards JSONB DEFAULT '[]',
-        pairs JSONB DEFAULT '[]',
-        association_text JSONB DEFAULT '[]'
-      );
-
-      -- Image Cards table
-      CREATE TABLE IF NOT EXISTS cards_image (
-        id TEXT PRIMARY KEY,
-        locale TEXT DEFAULT 'zh-TW',
-        name TEXT,
-        name_en TEXT,
-        image_url TEXT NOT NULL,
-        description TEXT,
-        elements JSONB DEFAULT '{"wood": 0, "fire": 0, "earth": 0, "metal": 0, "water": 0}'
-      );
-
-      -- Word Cards table
-      CREATE TABLE IF NOT EXISTS cards_word (
-        id TEXT PRIMARY KEY,
-        locale TEXT DEFAULT 'zh-TW',
-        name TEXT,
-        name_en TEXT,
-        text TEXT NOT NULL,
-        image_url TEXT,
-        description TEXT,
-        elements JSONB DEFAULT '{"wood": 0, "fire": 0, "earth": 0, "metal": 0, "water": 0}'
-      );
-
-      -- Add locale and name_en columns if they don't exist
-      DO $$ 
-      BEGIN 
-        BEGIN
-          ALTER TABLE cards_image ADD COLUMN locale TEXT DEFAULT 'zh-TW';
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-        BEGIN
-          ALTER TABLE cards_image ADD COLUMN name_en TEXT;
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-        BEGIN
-          ALTER TABLE cards_image ADD COLUMN name TEXT;
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-        BEGIN
-          ALTER TABLE cards_word ADD COLUMN locale TEXT DEFAULT 'zh-TW';
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-        BEGIN
-          ALTER TABLE cards_word ADD COLUMN name TEXT;
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-        BEGIN
-          ALTER TABLE cards_word ADD COLUMN name_en TEXT;
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-      END $$;
-
-      -- AI Prompts table (Modular & Bilingual)
-      CREATE TABLE IF NOT EXISTS ai_prompts (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        module_name TEXT NOT NULL,
-        content_zh TEXT,
-        content_ja TEXT,
-        category TEXT DEFAULT 'core', -- 'core', 'scenario', 'format'
-        status TEXT DEFAULT 'draft',
-        version TEXT DEFAULT '1.0.0',
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Manifestations table
-      CREATE TABLE IF NOT EXISTS manifestations (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
-        wish_title TEXT NOT NULL,
-        deadline TIMESTAMP WITH TIME ZONE NOT NULL,
-        deadline_option TEXT NOT NULL,
-        status TEXT DEFAULT 'active',
-        reminder_sent BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Energy Reports table (Added lang for isolation)
-      CREATE TABLE IF NOT EXISTS energy_reports (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id TEXT, -- Indexed but not strictly constrained to allow guest/sync-delay saves
-        lang TEXT DEFAULT 'zh', -- Added for language isolation
-        timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        is_ai_complete BOOLEAN DEFAULT FALSE,
-        dominant_element TEXT,
-        weak_element TEXT,
-        balance_score FLOAT,
-        today_theme TEXT,
-        share_thumbnail TEXT,
-        report_data JSONB DEFAULT '{}' -- Stores all other complex data (pairs, scores, interpretations)
-      );
-
-      -- Ensure lang column exists if table was already created
-      ALTER TABLE energy_reports ADD COLUMN IF NOT EXISTS lang TEXT DEFAULT 'zh';
-
-      CREATE INDEX IF NOT EXISTS idx_reports_user_id ON energy_reports(user_id);
-      CREATE INDEX IF NOT EXISTS idx_reports_timestamp ON energy_reports(timestamp DESC);
-
-      -- Site Settings table
-      CREATE TABLE IF NOT EXISTS site_settings (
-        key TEXT PRIMARY KEY,
-        value JSONB NOT NULL,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Music Tracks table
-      CREATE TABLE IF NOT EXISTS music_tracks (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name TEXT NOT NULL,
-        element TEXT NOT NULL,
-        url TEXT NOT NULL,
-        is_active BOOLEAN DEFAULT TRUE,
-        sort_order INTEGER DEFAULT 0,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Ocean of Resonance: Bottles table
-      CREATE TABLE IF NOT EXISTS bottles (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
-        content TEXT NOT NULL,
-        element TEXT NOT NULL,
-        lang TEXT NOT NULL,
-        origin_locale TEXT NOT NULL,
-        card_id TEXT,
-        quote TEXT,
-        report_id UUID,
-        sender_nickname TEXT,
-        card_image_url TEXT,
-        card_name_saved TEXT,
-        is_active BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Ensure new columns exist if table was created earlier
-      DO $$ 
-      BEGIN 
-        BEGIN
-          ALTER TABLE bottles ADD COLUMN card_image_url TEXT;
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-        BEGIN
-          ALTER TABLE bottles ADD COLUMN card_name_saved TEXT;
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-        BEGIN
-          ALTER TABLE bottles ADD COLUMN card_id TEXT;
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-        BEGIN
-          ALTER TABLE bottles ADD COLUMN quote TEXT;
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-        BEGIN
-          ALTER TABLE bottles ADD COLUMN report_id UUID;
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-        BEGIN
-          ALTER TABLE bottles ADD COLUMN sender_nickname TEXT;
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-        BEGIN
-          ALTER TABLE bottles ADD COLUMN view_count INTEGER DEFAULT 0;
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-        BEGIN
-          ALTER TABLE bottles ADD COLUMN last_checked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-      END $$;
-
-      -- Update users table for default nickname
-      DO $$ 
-      BEGIN 
-        BEGIN
-          ALTER TABLE users ADD COLUMN default_bottle_nickname TEXT;
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-      END $$;
-
-      -- Ocean of Resonance: Blessing Tags table
-      CREATE TABLE IF NOT EXISTS bottle_tags (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name_zh TEXT NOT NULL,
-        name_ja TEXT NOT NULL,
-        color TEXT DEFAULT '#8E9299',
-        category TEXT DEFAULT 'blessing',
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Ensure color and name columns exist if table was created earlier
-      DO $$ 
-      BEGIN 
-        BEGIN
-          ALTER TABLE bottle_tags ADD COLUMN color TEXT DEFAULT '#8E9299';
-        EXCEPTION
-          WHEN duplicate_column THEN NULL;
-        END;
-        BEGIN
-          ALTER TABLE bottle_tags RENAME COLUMN text_zh TO name_zh;
-        EXCEPTION
-          WHEN undefined_column THEN NULL;
-        END;
-        BEGIN
-          ALTER TABLE bottle_tags RENAME COLUMN text_ja TO name_ja;
-        EXCEPTION
-          WHEN undefined_column THEN NULL;
-        END;
-      END $$;
-
-      -- Ocean of Resonance: Blessings table
-      CREATE TABLE IF NOT EXISTS bottle_blessings (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        bottle_id UUID NOT NULL REFERENCES bottles(id) ON DELETE CASCADE,
-        user_id TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
-        tag_id UUID NOT NULL REFERENCES bottle_tags(id) ON DELETE CASCADE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Ocean of Resonance: Saved Bottles table
-      CREATE TABLE IF NOT EXISTS saved_bottles (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
-        bottle_id UUID NOT NULL REFERENCES bottles(id) ON DELETE CASCADE,
-        reply_message TEXT,
-        saved_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, bottle_id)
-      );
-
-      -- Ocean of Resonance: Bottle Replies table
-      CREATE TABLE IF NOT EXISTS bottle_replies (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        bottle_id UUID NOT NULL REFERENCES bottles(id) ON DELETE CASCADE,
-        sender_id TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
-        content TEXT NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Ocean of Resonance: Sensitive Words table
-      CREATE TABLE IF NOT EXISTS sensitive_words (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        word TEXT NOT NULL UNIQUE,
-        category TEXT DEFAULT 'general',
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Initialize default SEO settings if not exists
-      INSERT INTO site_settings (key, value)
-      VALUES ('seo', '{
-        "title": "EUNIE 嶼妳 | 懂妳的能量，平衡妳的生活",
-        "description": "透過五行能量卡片，探索內在自我，獲得每日心靈指引與能量平衡。",
-        "keywords": "能量卡片, 五行, 心靈導引, 冥想, 自我探索",
-        "og_image": "https://picsum.photos/seed/lumina-og/1200/630",
-        "google_analytics_id": "",
-        "search_console_id": "",
-        "index_enabled": true
-      }')
-      ON CONFLICT (key) DO NOTHING;
-
-      INSERT INTO site_settings (key, value)
-      VALUES ('fonts', '{
-        "zh": {
-          "display": {
-            "url": "https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700&display=swap",
-            "family": "Noto Serif TC, serif"
-          },
-          "body": {
-            "url": "https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500&display=swap",
-            "family": "Noto Sans TC, sans-serif"
-          }
-        },
-        "ja": {
-          "display": {
-            "url": "https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&display=swap",
-            "family": "Shippori Mincho, serif"
-          },
-          "body": {
-            "url": "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500&display=swap",
-            "family": "Noto Sans JP, sans-serif"
-          }
-        }
-      }')
-      ON CONFLICT (key) DO NOTHING;
-    `);
-
-    // Seed default Blessing Tags
-    const tagCount = await pool.query("SELECT COUNT(*) FROM bottle_tags");
-    if (parseInt(tagCount.rows[0].count) === 0) {
-      console.log("Seeding default blessing tags...");
-      const defaultTags = [
-        { name_zh: '溫暖共鳴', name_ja: '温かい共鳴', color: '#F27D26' },
-        { name_zh: '療癒之光', name_ja: '癒やしの光', color: '#8BA889' },
-        { name_zh: '勇氣泉源', name_ja: '勇気の源', color: '#D98B73' },
-        { name_zh: '平靜之海', name_ja: '平穏の海', color: '#6B7B8C' },
-        { name_zh: '智慧流動', name_ja: '知恵の流動', color: '#A88B89' }
-      ];
-      for (const tag of defaultTags) {
-        await pool.query(
-          "INSERT INTO bottle_tags (name_zh, name_ja, color) VALUES ($1, $2, $3)",
-          [tag.name_zh, tag.name_ja, tag.color]
-        );
-      }
-    }
-
-    // Seed default Sensitive Words
-    const wordCount = await pool.query("SELECT COUNT(*) FROM sensitive_words");
-    if (parseInt(wordCount.rows[0].count) === 0) {
-      console.log("Seeding default sensitive words...");
-      const defaultWords = ['暴力', '色情', '賭博', '毒品', '詐騙', '自殺', '殺人'];
-      for (const word of defaultWords) {
-        await pool.query(
-          "INSERT INTO sensitive_words (word, category) VALUES ($1, $2) ON CONFLICT (word) DO NOTHING",
-          [word, 'general']
-        );
-      }
-    }
-
-    client.release();
-    console.log("Database tables initialized");
-
-    // Sync cards from JSON files (Correct Data Source)
-    await syncCardsFromJson(pool);
-
-    // Auto-seed default prompts if empty
-    const promptCount = await pool.query("SELECT COUNT(*) FROM ai_prompts");
-    if (parseInt(promptCount.rows[0].count) === 0) {
-      console.log("Seeding default prompts...");
-      
-      const defaultPrompts = [
-        {
-          module_name: 'persona',
-          category: 'core',
-          status: 'active',
-          content_zh: '妳是一位溫柔且具備空靈氣質的現代女性心理引導師，名字叫 EUNIE。妳擅長透過五行能量與 OH 卡來引導用戶探索內在。妳的語氣充滿詩意，稱呼用戶為「妳」。',
-          content_ja: 'あなたは優雅で神秘的な雰囲気を持つ現代女性の心理カウンセラー、EUNIE（エウニ）です。五行エネルギーとOHカードを通じて、相談者の内面を優しく導きます。詩的な表現を使い、相談者を「あなた」と呼びます。'
-        },
-        {
-          module_name: 'knowledge',
-          category: 'core',
-          status: 'active',
-          content_zh: '妳精通五行（木、火、土、金、水）的平衡理論。木代表生長與創意，火代表熱情與行動，土代表穩定與包容，金代表秩序與收斂，水代表智慧與流動。妳會根據用戶的抽牌結果分析這些能量的消長。',
-          content_ja: 'あなたは五行（木、火、土、金、水）のバランス理論に精通しています。木は成長と創造、火は情熱と行動、土は安定と包容、金は秩序と収束、水は知恵と流動を表します。カードの結果に基づき、これらのエネルギーのバランスを分析します。'
-        },
-        {
-          module_name: 'analysis_task',
-          category: 'scenario',
-          status: 'active',
-          content_zh: '請根據用戶選擇的卡片與聯想文字，進行深度的心理引導。妳需要分析卡片中的象徵意義，並給出一段溫暖的建議。請務必使用繁體中文 (zh-TW) 回答，不要夾雜日文。最後，妳必須輸出一個 JSON 格式，包含引導文字與能量數值更新。\n\n【用戶抽卡與連想】\n{{USER_DATA}}\n\n【當前五行能量權重】\n{{ENERGY_DATA}}',
-          content_ja: '相談者が選んだカードと連想した言葉に基づき、深い心理的ガイダンスを行ってください。カードの象徴的な意味を分析し、温かいアドバイスを伝えます。必ず日本語 (ja-JP) で回答し、中国語を混ぜないでください。最後に、ガイダンス文とエネルギー数値の更新を含むJSON形式で出力してください。\n\n【ユーザーデータ】\n{{USER_DATA}}\n\n【現在のエネルギー】\n{{ENERGY_DATA}}'
-        },
-        {
-          module_name: 'format_instruction',
-          category: 'format',
-          status: 'active',
-          content_zh: '妳必須嚴格遵守以下 JSON 輸出格式：{"content": "妳的引導文字", "energyUpdate": {"wood": 數值, "fire": 數值, "earth": 數值, "metal": 數值, "water": 數值}, "todayTheme": "一句話主題"}。數值範圍為 0 到 1。',
-          content_ja: '必ず以下のJSON形式で出力してください：{"content": "ガイダンス文", "energyUpdate": {"wood": 数値, "fire": 数値, "earth": 数値, "metal": 数値, "water": 数値}, "todayTheme": "一言テーマ"}。数値の範囲は0から1です。'
-        }
-      ];
-
-      for (const p of defaultPrompts) {
-        await pool.query(
-          "INSERT INTO ai_prompts (module_name, category, status, content_zh, content_ja) VALUES ($1, $2, $3, $4, $5)",
-          [p.module_name, p.category, p.status, p.content_zh, p.content_ja]
-        );
-      }
-      console.log("Default prompts seeded");
-    }
-
-    // Auto-seed music tracks if empty
-    const musicCount = await pool.query("SELECT COUNT(*) FROM music_tracks");
-    if (parseInt(musicCount.rows[0].count) === 0) {
-      console.log("Seeding default music tracks...");
-      const defaultMusic = [
-        { name: 'Little Forest Spirit', element: 'wood', url: 'https://firebasestorage.googleapis.com/v0/b/lumina-oh-jp.firebasestorage.app/o/audio%2FLittle%20Forest%20Spirit%20Tea%20Time%EF%BC%88%E6%9C%A8%EF%BC%89%20(1).mp3?alt=media&token=2fa73b22-abdb-481b-b9ac-82f7b075fce1', sort_order: 1 },
-        { name: 'Little Ember', element: 'fire', url: 'https://firebasestorage.googleapis.com/v0/b/lumina-oh-jp.firebasestorage.app/o/audio%2FLittle%20Ember%20Tea%20Time%EF%BC%88%E7%81%AB%EF%BC%89%20(1).mp3?alt=media&token=6512316f-3129-4d8a-bde0-53014d00d950', sort_order: 2 },
-        { name: 'Little Mountain Garden', element: 'earth', url: 'https://firebasestorage.googleapis.com/v0/b/lumina-oh-jp.firebasestorage.app/o/audio%2FLittle%20Mountain%20Garden%20Tea%20Time%EF%BC%88%E5%9C%9F%EF%BC%89%20(1).mp3?alt=media&token=dc38d876-3867-4694-87b3-a499c62bc97f', sort_order: 3 },
-        { name: 'Little Silver Bell', element: 'metal', url: 'https://firebasestorage.googleapis.com/v0/b/lumina-oh-jp.firebasestorage.app/o/audio%2FLittle%20Silver%20Bell%20Tea%20Time%EF%BC%88%E9%87%91%EF%BC%89%20(1).mp3?alt=media&token=4666bbd6-021b-46c5-a8a9-7d0f3077e756', sort_order: 4 },
-        { name: 'Little River Breeze', element: 'water', url: 'https://firebasestorage.googleapis.com/v0/b/lumina-oh-jp.firebasestorage.app/o/audio%2FLittle%20River%20Breeze%20Tea%20Time%EF%BC%88%E6%B0%B4%EF%BC%89%20(1).mp3?alt=media&token=928fe51c-0b8d-4c91-ad9b-be5b46767f05', sort_order: 5 }
-      ];
-      for (const m of defaultMusic) {
-        await pool.query(
-          "INSERT INTO music_tracks (name, element, url, sort_order) VALUES ($1, $2, $3, $4)",
-          [m.name, m.element, m.url, m.sort_order]
-        );
-      }
-      console.log("Default music tracks seeded");
-    }
-  } catch (err) {
-    console.error("Database initialization error:", err);
-  }
+  // Initialize database tables in background
+  initializeDatabase(pool).catch(err => console.error("Database initialization background error:", err));
 
   app.use((req, res, next) => {
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
@@ -1943,8 +1479,306 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
+    console.log("Environment:", process.env.NODE_ENV || "development");
   });
+
+  // Sync cards after server starts
+  syncCardsFromJson(pool).catch(err => console.error("Initial card sync failed:", err));
+}
+
+/**
+ * Initializes database tables and seeds default data.
+ * This runs in the background to ensure the server starts quickly.
+ */
+async function initializeDatabase(pool: pg.Pool) {
+  console.log("Initializing database tables...");
+  try {
+    // Users table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        uid TEXT PRIMARY KEY,
+        email TEXT,
+        display_name TEXT,
+        photo_url TEXT,
+        role TEXT DEFAULT 'free_member',
+        subscription_status TEXT DEFAULT 'none',
+        default_bottle_nickname TEXT,
+        register_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Add missing columns to users if they don't exist
+    await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'none';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS default_bottle_nickname TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS register_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    `);
+
+    // Energy Journal table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS energy_journal (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT REFERENCES users(uid),
+        emotion_tag TEXT,
+        insight TEXT,
+        intention TEXT,
+        date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Add missing columns to energy_journal if they don't exist
+    await pool.query(`
+      ALTER TABLE energy_journal ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(uid);
+      ALTER TABLE energy_journal ADD COLUMN IF NOT EXISTS emotion_tag TEXT;
+      ALTER TABLE energy_journal ADD COLUMN IF NOT EXISTS insight TEXT;
+      ALTER TABLE energy_journal ADD COLUMN IF NOT EXISTS intention TEXT;
+    `);
+
+    // Energy Reports table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS energy_reports (
+        id TEXT PRIMARY KEY,
+        user_id TEXT REFERENCES users(uid),
+        lang TEXT DEFAULT 'zh',
+        dominant_element TEXT,
+        weak_element TEXT,
+        balance_score FLOAT,
+        today_theme TEXT,
+        share_thumbnail TEXT,
+        is_ai_complete BOOLEAN DEFAULT FALSE,
+        report_data JSONB DEFAULT '{}',
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Add missing columns to energy_reports if they don't exist
+    await pool.query(`
+      ALTER TABLE energy_reports ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(uid);
+      ALTER TABLE energy_reports ADD COLUMN IF NOT EXISTS dominant_element TEXT;
+      ALTER TABLE energy_reports ADD COLUMN IF NOT EXISTS is_ai_complete BOOLEAN DEFAULT FALSE;
+      ALTER TABLE energy_reports ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    `);
+
+    // Sessions table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sessions (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT REFERENCES users(uid),
+        image_cards JSONB,
+        word_cards JSONB,
+        pairs JSONB,
+        association_text JSONB,
+        session_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Add missing columns to sessions if they don't exist
+    await pool.query(`
+      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS session_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS pairs JSONB;
+      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS association_text JSONB;
+    `);
+
+    // AI Prompts table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ai_prompts (
+        id SERIAL PRIMARY KEY,
+        module_name TEXT,
+        content_zh TEXT,
+        content_ja TEXT,
+        status TEXT DEFAULT 'active',
+        version TEXT,
+        category TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Bottles table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS bottles (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT REFERENCES users(uid),
+        content TEXT,
+        element TEXT,
+        lang TEXT DEFAULT 'zh',
+        origin_locale TEXT,
+        card_id TEXT,
+        quote TEXT,
+        report_id TEXT REFERENCES energy_reports(id),
+        sender_nickname TEXT,
+        card_image_url TEXT,
+        card_name_saved TEXT,
+        last_checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Bottle Blessings table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS bottle_blessings (
+        id SERIAL PRIMARY KEY,
+        bottle_id INTEGER REFERENCES bottles(id) ON DELETE CASCADE,
+        user_id TEXT REFERENCES users(uid),
+        tag_id INTEGER REFERENCES bottle_tags(id),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Bottle Replies table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS bottle_replies (
+        id SERIAL PRIMARY KEY,
+        bottle_id INTEGER REFERENCES bottles(id) ON DELETE CASCADE,
+        sender_id TEXT REFERENCES users(uid),
+        content TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Saved Bottles table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS saved_bottles (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT REFERENCES users(uid),
+        bottle_id INTEGER REFERENCES bottles(id) ON DELETE CASCADE,
+        reply_message TEXT,
+        saved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, bottle_id)
+      );
+    `);
+
+    // Site Settings table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS site_settings (
+        key TEXT PRIMARY KEY,
+        value JSONB,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Music Tracks table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS music_tracks (
+        id SERIAL PRIMARY KEY,
+        name TEXT,
+        element TEXT,
+        url TEXT UNIQUE,
+        is_active BOOLEAN DEFAULT TRUE,
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Add missing columns to music_tracks if they don't exist
+    await pool.query(`
+      ALTER TABLE music_tracks ADD COLUMN IF NOT EXISTS name TEXT;
+      ALTER TABLE music_tracks ADD COLUMN IF NOT EXISTS element TEXT;
+      ALTER TABLE music_tracks ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+      ALTER TABLE music_tracks ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
+    `);
+
+    // Bottle Tags table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS bottle_tags (
+        id SERIAL PRIMARY KEY,
+        tag TEXT UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Sensitive Words table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sensitive_words (
+        id SERIAL PRIMARY KEY,
+        word TEXT UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Cards Image table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS cards_image (
+        id TEXT PRIMARY KEY,
+        locale TEXT,
+        name TEXT,
+        name_en TEXT,
+        image_url TEXT,
+        description TEXT,
+        elements JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Cards Word table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS cards_word (
+        id TEXT PRIMARY KEY,
+        locale TEXT,
+        name TEXT,
+        name_en TEXT,
+        text TEXT,
+        image_url TEXT,
+        description TEXT,
+        elements JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Seed default settings if not exists
+    await pool.query(`
+      INSERT INTO site_settings (key, value)
+      VALUES ('seo', '{"title": "EUNIE 嶼妳 | 懂妳的能量，平衡妳的生活", "description": "透過五行能量卡片，探索內在自我，獲得每日心靈指引與能量平衡。", "keywords": "能量卡片, 五行, 心靈導引, 冥想, 自我探索", "og_image": "https://picsum.photos/seed/lumina-og/1200/630", "google_analytics_id": "", "search_console_id": "", "index_enabled": true}')
+      ON CONFLICT (key) DO NOTHING;
+    `);
+
+    await pool.query(`
+      INSERT INTO site_settings (key, value)
+      VALUES ('fonts', '{"zh": {"display": {"url": "https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700&display=swap", "family": "\\"Noto Serif TC\\", serif"}, "body": {"url": "https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500&display=swap", "family": "\\"Noto Sans TC\\", sans-serif"}}, "ja": {"display": {"url": "https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&display=swap", "family": "\\"Shippori Mincho\\", serif"}, "body": {"url": "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500&display=swap", "family": "\\"Noto Sans JP\\", sans-serif"}}}')
+      ON CONFLICT (key) DO NOTHING;
+    `);
+
+    // Seed bottle tags
+    await pool.query(`
+      INSERT INTO bottle_tags (tag)
+      VALUES ('love'), ('career'), ('health'), ('family'), ('friendship'), ('wealth'), ('spiritual')
+      ON CONFLICT (tag) DO NOTHING;
+    `);
+
+    // Seed sensitive words
+    await pool.query(`
+      INSERT INTO sensitive_words (word)
+      VALUES ('scam'), ('fraud'), ('abuse'), ('hate'), ('violence')
+      ON CONFLICT (word) DO NOTHING;
+    `);
+
+    // Seed default music tracks
+    await pool.query(`
+      INSERT INTO music_tracks (name, element, url, is_active, sort_order)
+      VALUES 
+      ('Forest Meditation', 'wood', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', TRUE, 1),
+      ('Ocean Waves', 'water', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3', TRUE, 2),
+      ('Zen Garden', 'earth', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3', TRUE, 3)
+      ON CONFLICT (url) DO NOTHING;
+    `);
+
+    // Seed admin user
+    const adminEmail = "rulai0725@gmail.com";
+    await pool.query(`
+      INSERT INTO users (uid, email, display_name, role, subscription_status)
+      VALUES ('admin_default', $1, 'Admin', 'admin', 'active')
+      ON CONFLICT (uid) DO NOTHING;
+    `, [adminEmail]);
+
+    console.log("Database initialization complete.");
+  } catch (err) {
+    console.error("Error during database initialization:", err);
+    throw err;
+  }
 }
 
 /**

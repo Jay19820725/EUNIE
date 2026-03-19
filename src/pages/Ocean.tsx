@@ -58,7 +58,8 @@ export const Ocean: React.FC<{ onNavigate?: (page: string) => void }> = ({ onNav
 
   useEffect(() => {
     // Initialize ambient audio
-    const audio = new Audio('https://firebasestorage.googleapis.com/v0/b/yuni-8f439.firebasestorage.app/o/eunie-assets%2Faudio%2Fwaves.MP3?alt=media&token=9b3dbc7c-6c56-447e-9c45-ac273d4fc4d4');
+    const storageBucket = import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'yuni-8f439.firebasestorage.app';
+    const audio = new Audio(`https://firebasestorage.googleapis.com/v0/b/${storageBucket}/o/eunie-assets%2Faudio%2Fwaves.MP3?alt=media&token=9b3dbc7c-6c56-447e-9c45-ac273d4fc4d4`);
     audio.loop = true;
     audio.volume = 0;
     ambientAudioRef.current = audio;

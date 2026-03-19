@@ -192,11 +192,12 @@ export const IMAGES = [
 export const LUMINA_CARDS = WORDS.map((word, i) => {
   const image = IMAGES[i];
   const idStr = word.id.toString().padStart(2, '0');
+  const storageBucket = import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'lumina-oh-jp.firebasestorage.app';
   return {
     id: word.id,
     // Using Firebase Storage bucket for real assets
-    imageCardUrl: `https://firebasestorage.googleapis.com/v0/b/lumina-oh-jp.firebasestorage.app/o/oh-cards%2Fimg_${idStr}.jpeg?alt=media`,
-    wordCardUrl: `https://firebasestorage.googleapis.com/v0/b/lumina-oh-jp.firebasestorage.app/o/oh-cards%2Fword_${idStr}.jpeg?alt=media`,
+    imageCardUrl: `https://firebasestorage.googleapis.com/v0/b/${storageBucket}/o/oh-cards%2Fimg_${idStr}.jpeg?alt=media`,
+    wordCardUrl: `https://firebasestorage.googleapis.com/v0/b/${storageBucket}/o/oh-cards%2Fword_${idStr}.jpeg?alt=media`,
     textCardContent: word.text,
     elements: {
       [FiveElement.WOOD]: word.wood,
