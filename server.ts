@@ -1613,9 +1613,17 @@ async function initializeDatabase(pool: pg.Pool) {
         sender_nickname TEXT,
         card_image_url TEXT,
         card_name_saved TEXT,
+        view_count INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT TRUE,
         last_checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    // Add missing columns to bottles if they don't exist
+    await pool.query(`
+      ALTER TABLE bottles ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0;
+      ALTER TABLE bottles ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
     `);
 
     // Bottle Blessings table
@@ -1696,6 +1704,19 @@ async function initializeDatabase(pool: pg.Pool) {
       CREATE TABLE IF NOT EXISTS sensitive_words (
         id SERIAL PRIMARY KEY,
         word TEXT UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Manifestations table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS manifestations (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT REFERENCES users(uid),
+        wish_title TEXT,
+        deadline TIMESTAMP,
+        deadline_option TEXT,
+        status TEXT DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
