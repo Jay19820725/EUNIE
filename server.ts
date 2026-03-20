@@ -1822,14 +1822,16 @@ async function initializeDatabase(pool: pg.Pool) {
     `);
 
     // Seed default music tracks
-    await pool.query(`
-      INSERT INTO music_tracks (name, element, url, is_active, sort_order)
-      VALUES 
-      ('Forest Meditation', 'wood', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', TRUE, 1),
-      ('Ocean Waves', 'water', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3', TRUE, 2),
-      ('Zen Garden', 'earth', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3', TRUE, 3)
-      ON CONFLICT (url) DO NOTHING;
-    `);
+    const musicCount = await pool.query("SELECT COUNT(*) FROM music_tracks");
+    if (parseInt(musicCount.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO music_tracks (name, element, url, is_active, sort_order)
+        VALUES 
+        ('Forest Meditation', 'wood', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', TRUE, 1),
+        ('Ocean Waves', 'water', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3', TRUE, 2),
+        ('Zen Garden', 'earth', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3', TRUE, 3)
+      `);
+    }
 
     // Seed admin user
     const adminEmail = "rulai0725@gmail.com";
