@@ -1161,17 +1161,17 @@ async function startServer() {
   });
 
   app.post("/api/admin/music", async (req, res) => {
-    const { id, name, element, url, is_active, sort_order } = req.body;
+    const { id, name, title, artist, category, element, url, is_active, sort_order } = req.body;
     try {
       if (id) {
         await pool.query(
-          "UPDATE music_tracks SET name = $1, element = $2, url = $3, is_active = $4, sort_order = $5 WHERE id = $6",
-          [name, element, url, is_active, sort_order, id]
+          "UPDATE music_tracks SET name = $1, title = $2, artist = $3, category = $4, element = $5, url = $6, is_active = $7, sort_order = $8 WHERE id = $9",
+          [name, title, artist, category, element, url, is_active, sort_order, id]
         );
       } else {
         await pool.query(
-          "INSERT INTO music_tracks (name, element, url, is_active, sort_order) VALUES ($1, $2, $3, $4, $5)",
-          [name, element, url, is_active, sort_order]
+          "INSERT INTO music_tracks (name, title, artist, category, element, url, is_active, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+          [name, title, artist, category, element, url, is_active, sort_order]
         );
       }
       res.json({ success: true });
@@ -1703,8 +1703,11 @@ async function initializeDatabase(pool: pg.Pool) {
       CREATE TABLE IF NOT EXISTS music_tracks (
         id SERIAL PRIMARY KEY,
         name TEXT,
+        title TEXT,
+        artist TEXT,
+        category TEXT,
         element TEXT,
-        url TEXT UNIQUE,
+        url TEXT,
         is_active BOOLEAN DEFAULT TRUE,
         sort_order INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -1714,10 +1717,22 @@ async function initializeDatabase(pool: pg.Pool) {
     // Add missing columns to music_tracks if they don't exist
     await pool.query(`
       ALTER TABLE music_tracks ADD COLUMN IF NOT EXISTS name TEXT;
+      ALTER TABLE music_tracks ADD COLUMN IF NOT EXISTS title TEXT;
+      ALTER TABLE music_tracks ADD COLUMN IF NOT EXISTS artist TEXT;
+      ALTER TABLE music_tracks ADD COLUMN IF NOT EXISTS category TEXT;
       ALTER TABLE music_tracks ADD COLUMN IF NOT EXISTS element TEXT;
       ALTER TABLE music_tracks ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
       ALTER TABLE music_tracks ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
     `);
+
+    // Remove unique constraint on url if it exists (to prevent issues with empty URLs)
+    try {
+      await pool.query(`
+        ALTER TABLE music_tracks DROP CONSTRAINT IF EXISTS music_tracks_url_key;
+      `);
+    } catch (e) {
+      // Ignore if constraint doesn't exist
+    }
 
     // Bottle Tags table
     await pool.query(`

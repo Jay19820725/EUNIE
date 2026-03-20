@@ -3,6 +3,9 @@ import React, { createContext, useContext, useState, useRef, useEffect } from 'r
 interface Soundscape {
   id: string;
   name: string;
+  title?: string;
+  artist?: string;
+  category?: string;
   element: 'wood' | 'fire' | 'earth' | 'metal' | 'water';
   url: string;
 }

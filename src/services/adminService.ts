@@ -225,11 +225,15 @@ export const adminService = {
   },
 
   async saveMusic(track: any): Promise<void> {
-    await fetch('/api/admin/music', {
+    const response = await fetch('/api/admin/music', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(track)
     });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Failed to save music: ${response.status}`);
+    }
   },
 
   async deleteMusic(id: string): Promise<void> {

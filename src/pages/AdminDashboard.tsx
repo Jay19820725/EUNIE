@@ -1699,18 +1699,18 @@ export const AdminDashboard: React.FC = () => {
                 <td className="px-6 py-4 text-ink-muted">{formatDate(session.session_time)}</td>
                 <td className="px-6 py-4">
                   <div className="flex -space-x-2">
-                    {session.image_cards.map((c, i) => (
+                    {session.image_cards?.map((c: any, i: number) => (
                       <div key={i} className="w-6 h-6 rounded-full border border-white overflow-hidden bg-ink/5">
-                        <img src={c.imageUrl} className="w-full h-full object-cover" />
+                        <img src={c.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       </div>
                     ))}
                   </div>
                 </td>
                 <td className="px-6 py-4">
                   <span className={`px-2 py-0.5 rounded-full text-[9px] uppercase tracking-widest ${
-                    session.pairs.length > 0 ? 'bg-wood/10 text-wood' : 'bg-ink/5 text-ink-muted'
+                    (session.pairs?.length || 0) > 0 ? 'bg-wood/10 text-wood' : 'bg-ink/5 text-ink-muted'
                   }`}>
-                    {session.pairs.length > 0 ? '已完成' : '草稿'}
+                    {(session.pairs?.length || 0) > 0 ? '已完成' : '草稿'}
                   </span>
                 </td>
               </tr>
@@ -1769,6 +1769,9 @@ export const AdminDashboard: React.FC = () => {
         <Button 
           onClick={() => setEditingMusic({ 
             name: '', 
+            title: '',
+            artist: '',
+            category: 'meditation',
             element: 'wood', 
             url: '', 
             is_active: true, 
@@ -1796,8 +1799,9 @@ export const AdminDashboard: React.FC = () => {
               {music?.map(track => (
                 <tr key={track.id} className="hover:bg-ink/[0.02] transition-colors">
                   <td className="px-6 py-4">
-                    <p className="font-medium">{track.name}</p>
-                    <p className="text-[9px] text-ink-muted truncate max-w-[200px]">{track.url}</p>
+                    <p className="font-medium">{track.title || track.name}</p>
+                    {track.artist && <p className="text-[10px] text-ink/40 italic">{track.artist}</p>}
+                    <p className="text-[9px] text-ink-muted truncate max-w-[200px] mt-1">{track.url}</p>
                   </td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-0.5 rounded-full text-[9px] uppercase tracking-widest ${
@@ -2264,15 +2268,50 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               <div className="p-10 space-y-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] uppercase tracking-widest text-ink-muted font-medium">音樂名稱</label>
-                  <input 
-                    type="text" 
-                    value={editingMusic.name}
-                    onChange={(e) => setEditingMusic({ ...editingMusic, name: e.target.value })}
-                    className="w-full px-5 py-4 bg-ink/[0.02] border border-ink/5 rounded-2xl text-sm focus:outline-none focus:border-wood/30"
-                    placeholder="例如：森林晨光"
-                  />
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] uppercase tracking-widest text-ink-muted font-medium">音樂名稱 (內部用)</label>
+                    <input 
+                      type="text" 
+                      value={editingMusic.name}
+                      onChange={(e) => setEditingMusic({ ...editingMusic, name: e.target.value })}
+                      className="w-full px-5 py-4 bg-ink/[0.02] border border-ink/5 rounded-2xl text-sm focus:outline-none focus:border-wood/30"
+                      placeholder="例如：Little Forest Spirit"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] uppercase tracking-widest text-ink-muted font-medium">顯示標題</label>
+                    <input 
+                      type="text" 
+                      value={editingMusic.title}
+                      onChange={(e) => setEditingMusic({ ...editingMusic, title: e.target.value })}
+                      className="w-full px-5 py-4 bg-ink/[0.02] border border-ink/5 rounded-2xl text-sm focus:outline-none focus:border-wood/30"
+                      placeholder="例如：森林冥想"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] uppercase tracking-widest text-ink-muted font-medium">藝術家 / 來源</label>
+                    <input 
+                      type="text" 
+                      value={editingMusic.artist}
+                      onChange={(e) => setEditingMusic({ ...editingMusic, artist: e.target.value })}
+                      className="w-full px-5 py-4 bg-ink/[0.02] border border-ink/5 rounded-2xl text-sm focus:outline-none focus:border-wood/30"
+                      placeholder="例如：Nature Sounds"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] uppercase tracking-widest text-ink-muted font-medium">分類</label>
+                    <input 
+                      type="text" 
+                      value={editingMusic.category}
+                      onChange={(e) => setEditingMusic({ ...editingMusic, category: e.target.value })}
+                      className="w-full px-5 py-4 bg-ink/[0.02] border border-ink/5 rounded-2xl text-sm focus:outline-none focus:border-wood/30"
+                      placeholder="例如：meditation"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-6">

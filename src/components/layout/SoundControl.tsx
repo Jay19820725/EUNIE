@@ -70,7 +70,7 @@ export const SoundControl: React.FC = () => {
                   }`}
                 >
                   <ElementIcon element={sound.element} />
-                  <span className="text-xs tracking-wider font-light truncate max-w-[140px]">{sound.name}</span>
+                  <span className="text-xs tracking-wider font-light truncate max-w-[140px]">{sound.title || sound.name}</span>
                   {currentSound?.id === sound.id && isPlaying && (
                     <motion.div 
                       animate={{ scaleY: [1, 1.5, 1] }}
