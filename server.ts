@@ -1496,7 +1496,7 @@ async function startServer() {
     if (fs.existsSync(distPath)) {
       console.log(`Serving static files from: ${distPath}`);
       app.use(express.static(distPath));
-      app.get("*", (req, res) => {
+      app.get(/.*/, (req, res) => {
         res.sendFile(path.join(distPath, "index.html"));
       });
     } else {
