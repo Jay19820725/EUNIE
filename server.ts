@@ -56,6 +56,14 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
+  // Request logging for debugging
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+    }
+    next();
+  });
+
   // Dynamic Meta Injection Middleware for SEO
   app.get(["/", "/report/:id"], async (req, res, next) => {
     const userAgent = req.headers["user-agent"] || "";
@@ -1464,25 +1472,44 @@ async function startServer() {
   });
 
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+  const isProduction = process.env.NODE_ENV === "production" || process.env.ZEABUR === "true";
+  
+  if (!isProduction) {
+    console.log("Starting in development mode with Vite middleware...");
+    try {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } catch (err) {
+      console.error("Failed to start Vite server, falling back to static serving:", err);
+      serveStatic();
+    }
   } else {
-    // Serve static files in production
-    app.use(express.static(path.join(__dirname, "dist")));
-    app.get(/.*/, (req, res) => {
-      res.sendFile(path.join(__dirname, "dist", "index.html"));
-    });
+    console.log("Starting in production mode...");
+    serveStatic();
+  }
+
+  function serveStatic() {
+    const distPath = path.join(__dirname, "dist");
+    if (fs.existsSync(distPath)) {
+      console.log(`Serving static files from: ${distPath}`);
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    } else {
+      console.warn(`Static directory not found: ${distPath}. API routes only.`);
+    }
   }
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
-  console.log("Environment:", process.env.NODE_ENV || "development");
-  console.log("Firebase API Key present:", !!process.env.VITE_FIREBASE_API_KEY);
-  console.log("Gemini API Key present:", !!process.env.GEMINI_API_KEY);
+    console.log("Environment:", process.env.NODE_ENV || "development");
+    console.log("Zeabur detected:", !!process.env.ZEABUR);
+    console.log("Firebase API Key present:", !!process.env.VITE_FIREBASE_API_KEY);
+    console.log("Gemini API Key present:", !!process.env.GEMINI_API_KEY);
   });
 
   // Sync cards after server starts
