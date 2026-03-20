@@ -1623,9 +1623,64 @@ async function initializeDatabase(pool: pg.Pool) {
         status TEXT DEFAULT 'active',
         version TEXT,
         category TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    // Add updated_at column if it doesn't exist (for existing tables)
+    await pool.query(`
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='ai_prompts' AND column_name='updated_at') THEN
+          ALTER TABLE ai_prompts ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        END IF;
+      END $$;
+    `);
+
+    // Seed initial prompts if empty
+    const promptsCheck = await pool.query("SELECT COUNT(*) FROM ai_prompts");
+    if (parseInt(promptsCheck.rows[0].count) === 0) {
+      const initialPrompts = [
+        {
+          module_name: '核心分析邏輯 (Core)',
+          content_zh: `妳是一位專為現代女性設計的「五行能量平衡引導師」。妳結合了東方五行元素平衡論與潛意識投射理論。
+請針對以下用戶的抽卡結果、連想文字以及五行能量數值，撰寫一份深度的能量分析報告。
+
+【用戶抽卡與連想】
+{{USER_DATA}}
+
+【當前五行能量權重】
+{{ENERGY_DATA}}`,
+          content_ja: `あなたは現代女性のためにデザインされた「五行エネルギーバランス・ガイド」です。東洋の五行説と潜在意識の投影理論を組み合わせています。
+ユーザーのカードの結果、連想、および五行エネルギーの数値に基づいて、詳細なエネルギー分析レポートを作成してください。
+
+【ユーザーのカードと連想】
+{{USER_DATA}}
+
+【現在の五行エネルギーの重み】
+{{ENERGY_DATA}}`,
+          version: '1.0.0',
+          status: 'active',
+          category: 'core'
+        },
+        {
+          module_name: '溫柔療癒風格 (Gentle)',
+          content_zh: '請使用溫柔、包容且充滿療癒感的語氣進行分析。多使用感性的詞彙，讓用戶感受到被理解與陪伴。',
+          content_ja: '優しく、包容力があり、癒しに満ちたトーンで分析してください。感情的な言葉を多く使い、ユーザーが理解され、寄り添われていると感じられるようにしてください。',
+          version: '1.0.0',
+          status: 'active',
+          category: 'scenario'
+        }
+      ];
+
+      for (const p of initialPrompts) {
+        await pool.query(
+          "INSERT INTO ai_prompts (module_name, content_zh, content_ja, status, version, category) VALUES ($1, $2, $3, $4, $5, $6)",
+          [p.module_name, p.content_zh, p.content_ja, p.status, p.version, p.category]
+        );
+      }
+    }
 
     // Bottles table
     await pool.query(`
