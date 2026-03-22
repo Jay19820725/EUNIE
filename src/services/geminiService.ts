@@ -5,7 +5,11 @@ export class GeminiService {
   private ai: GoogleGenAI;
 
   constructor() {
-    this.ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is not set in environment variables");
+    }
+    this.ai = new GoogleGenAI({ apiKey });
   }
 
   private async fetchSystemInstruction(lang: string): Promise<string> {
