@@ -56,14 +56,6 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
-  // Request logging for debugging
-  app.use((req, res, next) => {
-    if (req.path.startsWith('/api')) {
-      console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
-    }
-    next();
-  });
-
   // Dynamic Meta Injection Middleware for SEO
   app.get(["/", "/report/:id"], async (req, res, next) => {
     const userAgent = req.headers["user-agent"] || "";
@@ -210,7 +202,6 @@ async function startServer() {
 
   app.post(["/api/users", "/api/users/"], async (req, res) => {
     const { uid, email, displayName, photoURL, role, subscription_status } = req.body;
-    console.log("POST /api/users - Body:", req.body);
     try {
       const result = await pool.query(
         `INSERT INTO users (uid, email, display_name, photo_url, role, subscription_status) 
@@ -233,8 +224,6 @@ async function startServer() {
     const updates = req.body;
     const fields = Object.keys(updates);
     
-    console.log(`POST /api/users/${uid} - Updates:`, updates);
-    
     if (fields.length === 0) return res.status(400).json({ error: "No fields to update" });
 
     const setClause = fields.map((f, i) => {
@@ -255,7 +244,6 @@ async function startServer() {
         return res.status(404).json({ error: "User not found" });
       }
       
-      console.log(`User ${uid} updated successfully:`, result.rows[0]);
       res.json(result.rows[0]);
     } catch (err) {
       console.error("Error updating user:", err);
@@ -427,7 +415,6 @@ async function startServer() {
 
   app.get("/api/report/:id", async (req, res) => {
     const { id } = req.params;
-    console.log(`[API] GET /api/report/${id}`);
     try {
       const result = await pool.query("SELECT * FROM energy_reports WHERE id = $1", [id]);
       if (result.rows.length === 0) {
@@ -462,7 +449,6 @@ async function startServer() {
   app.get(["/api/reports/:userId", "/api/reports/:userId/"], async (req, res) => {
     const { userId } = req.params;
     const { lang } = req.query;
-    console.log(`[API] GET /api/reports/${userId} (lang: ${lang})`);
     try {
       // 1. Fetch reports for the requested language
       let query = "SELECT * FROM energy_reports WHERE user_id = $1";
@@ -527,8 +513,6 @@ async function startServer() {
       isAiComplete,
       ...otherData 
     } = req.body;
-
-    console.log(`[API] POST /api/reports - Saving report: ${id || 'NEW'} for: ${userId || 'GUEST'} (lang: ${lang})`);
 
     try {
       // 1. Ensure user exists if userId is provided (Auto-Sync)
