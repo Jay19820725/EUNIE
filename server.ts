@@ -255,7 +255,6 @@ async function startServer() {
         return res.status(404).json({ error: "User not found" });
       }
       
-      console.log(`User ${uid} updated successfully:`, result.rows[0]);
       res.json(result.rows[0]);
     } catch (err) {
       console.error("Error updating user:", err);
