@@ -37,8 +37,6 @@ async function startServer() {
     ? rawDbUrl! 
     : "postgresql://root:CZqK9cHT4603gnwNJY8jiQ5Aas2MoO71@tpe1.clusters.zeabur.com:25860/zeabur";
 
-  console.log("Using database connection string (masked):", connectionString.replace(/:[^:@]+@/, ":****@"));
-
   const pool = new Pool({
     connectionString,
     ssl: false,  // Zeabur PostgreSQL doesn't support SSL
