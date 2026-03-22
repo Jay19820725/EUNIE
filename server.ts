@@ -273,7 +273,6 @@ async function startServer() {
       );
       res.status(201).json({ id: result.rows[0].id });
     } catch (err) {
-      console.error("Error adding journal entry:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });
