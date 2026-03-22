@@ -1923,14 +1923,16 @@ async function syncCardsFromJson(pool: pg.Pool) {
     // However, if we want to ensure ONLY JSON data exists, we might need a different approach.
     // For now, let's just ensure defaults are there.
 
-    for (const file of files) {
+    const syncPromises = files.map(async (file) => {
       const filePath = path.join(dataDir, file.name);
-      if (!fs.existsSync(filePath)) {
-        console.warn(`File not found: ${filePath}`);
-        continue;
+      let rawData: string;
+      try {
+        rawData = await fs.promises.readFile(filePath, "utf-8");
+      } catch (e) {
+        console.warn(`File not found or unreadable: ${filePath}`);
+        return;
       }
 
-      const rawData = fs.readFileSync(filePath, "utf-8");
       const cards = JSON.parse(rawData);
       console.log(`Processing ${cards.length} cards from ${file.name}...`);
 
@@ -1986,7 +1988,9 @@ async function syncCardsFromJson(pool: pg.Pool) {
         }
       }
       console.log(`Synced ${cards.length} cards from ${file.name}`);
-    }
+    });
+
+    await Promise.all(syncPromises);
     console.log("Card data synchronization complete.");
   } catch (err) {
     console.error("Error during card synchronization:", err);
