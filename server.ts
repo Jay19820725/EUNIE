@@ -210,7 +210,6 @@ async function startServer() {
 
   app.post(["/api/users", "/api/users/"], async (req, res) => {
     const { uid, email, displayName, photoURL, role, subscription_status } = req.body;
-    console.log("POST /api/users - Body:", req.body);
     try {
       const result = await pool.query(
         `INSERT INTO users (uid, email, display_name, photo_url, role, subscription_status) 
