@@ -412,9 +412,25 @@ async function startServer() {
   app.post("/api/manifestations/:id", async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
-    const fields = Object.keys(updates);
+
+    // Whitelist allowed fields to prevent mass assignment vulnerability
+    const allowedFields = ['wish_title', 'deadline', 'deadline_option', 'status', 'reminder_sent'];
+    const filteredUpdates: Record<string, any> = {};
+
+    for (const key of Object.keys(updates)) {
+      if (allowedFields.includes(key)) {
+        filteredUpdates[key] = updates[key];
+      }
+    }
+
+    const fields = Object.keys(filteredUpdates);
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: "No valid fields provided for update" });
+    }
+
     const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(", ");
-    const values = [id, ...Object.values(updates)];
+    const values = [id, ...Object.values(filteredUpdates)];
 
     try {
       await pool.query(`UPDATE manifestations SET ${setClause} WHERE id = $1`, values);
@@ -1818,6 +1834,11 @@ async function initializeDatabase(pool: pg.Pool) {
         status TEXT DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    // Add missing columns to manifestations if they don't exist
+    await pool.query(`
+      ALTER TABLE manifestations ADD COLUMN IF NOT EXISTS reminder_sent BOOLEAN DEFAULT FALSE;
     `);
 
     // Cards Image table
