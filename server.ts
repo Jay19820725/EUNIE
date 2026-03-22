@@ -56,14 +56,6 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
-  // Request logging for debugging
-  app.use((req, res, next) => {
-    if (req.path.startsWith('/api')) {
-      console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
-    }
-    next();
-  });
-
   // Dynamic Meta Injection Middleware for SEO
   app.get(["/", "/report/:id"], async (req, res, next) => {
     const userAgent = req.headers["user-agent"] || "";
