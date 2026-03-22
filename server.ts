@@ -1674,12 +1674,14 @@ async function initializeDatabase(pool: pg.Pool) {
         }
       ];
 
-      for (const p of initialPrompts) {
-        await pool.query(
-          "INSERT INTO ai_prompts (module_name, content_zh, content_ja, status, version, category) VALUES ($1, $2, $3, $4, $5, $6)",
-          [p.module_name, p.content_zh, p.content_ja, p.status, p.version, p.category]
-        );
-      }
+      await Promise.all(
+        initialPrompts.map(p =>
+          pool.query(
+            "INSERT INTO ai_prompts (module_name, content_zh, content_ja, status, version, category) VALUES ($1, $2, $3, $4, $5, $6)",
+            [p.module_name, p.content_zh, p.content_ja, p.status, p.version, p.category]
+          )
+        )
+      );
     }
 
     // Bottles table
