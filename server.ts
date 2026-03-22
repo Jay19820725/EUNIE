@@ -183,7 +183,6 @@ async function startServer() {
       `;
       res.send(html);
     } catch (err) {
-      console.error("SEO Injection Error:", err);
       next();
     }
   });
