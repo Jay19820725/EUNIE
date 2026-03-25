@@ -6,7 +6,7 @@ const { Pool } = pg;
 
 async function listMusic() {
   const rawDbUrl = process.env.DATABASE_URL;
-  const connectionString = rawDbUrl || "postgresql://root:CZqK9cHT4603gnwNJY8jiQ5Aas2MoO71@tpe1.clusters.zeabur.com:25860/zeabur";
+  const connectionString = rawDbUrl || "postgresql://root:sy9aLY7vAHcEfji2U5b0R6n348kQV1NK@tpe1.clusters.zeabur.com:23833/zeabur";
 
   const pool = new Pool({
     connectionString,
