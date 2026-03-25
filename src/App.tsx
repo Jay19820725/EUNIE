@@ -22,7 +22,7 @@ const UserProfile = lazy(() => import('./pages/UserProfile').then(m => ({ defaul
 const EnergyTimeline = lazy(() => import('./pages/EnergyTimeline').then(m => ({ default: m.EnergyTimeline })));
 const Manifestations = lazy(() => import('./pages/Manifestations').then(m => ({ default: m.Manifestations })));
 const Ocean = lazy(() => import('./pages/Ocean').then(m => ({ default: m.Ocean })));
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const AdminLogin = lazy(() => import('./pages/AdminLogin').then(m => ({ default: m.AdminLogin })));
 const Subscription = lazy(() => import('./pages/Subscription').then(m => ({ default: m.Subscription })));
 
@@ -106,14 +106,19 @@ function AppContent() {
   // Check for completed reports that haven't been seen
   useEffect(() => {
     if (profile?.uid && currentPage !== 'report') {
-      fetch(`/api/reports/${profile.uid}`)
+      // Use a controller to abort if component unmounts or uid changes
+      const controller = new AbortController();
+      
+      fetch(`/api/reports/${profile.uid}`, { signal: controller.signal })
         .then(res => {
           if (!res.ok) {
             throw new Error(`Server responded with ${res.status}`);
           }
           const contentType = res.headers.get("content-type");
           if (!contentType || !contentType.includes("application/json")) {
-            throw new Error("Response was not JSON");
+            // If it's not JSON, it might be the index.html from a catch-all route
+            // This happens if the API route isn't matched correctly
+            throw new Error(`Expected JSON but got ${contentType || 'unknown'}`);
           }
           return res.json();
         })
@@ -134,11 +139,15 @@ function AppContent() {
           }
         })
         .catch(err => {
+          if (err.name === 'AbortError') return;
+          
           // Only log if it's not a common "not found" or "unauthorized" error during initial load
           if (!err.message.includes('404') && !err.message.includes('401')) {
-            console.error("Failed to fetch reports for return prompt:", err);
+            console.error("Failed to fetch reports for return prompt:", err.message);
           }
         });
+        
+      return () => controller.abort();
     }
   }, [profile?.uid, currentPage]);
 

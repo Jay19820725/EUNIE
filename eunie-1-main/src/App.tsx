@@ -1,7 +1,6 @@
 import React, { useState, Suspense, lazy, useEffect } from 'react';
 import { Navigation } from './components/layout/Navigation';
 import { LuminaBottle } from './components/ui/LuminaBottle';
-import { EnergyStatus } from './components/ui/EnergyStatus';
 import { PurchaseModal } from './components/PurchaseModal';
 import { KomorebiBackground } from './components/layout/KomorebiBackground';
 import { ConnectionStatus } from './components/ui/ConnectionStatus';
@@ -9,10 +8,11 @@ import { SEOManager } from './components/SEOManager';
 import { AnimatePresence, motion } from 'motion/react';
 import { Sparkles, X, ArrowRight } from 'lucide-react';
 import { useAuth } from './hooks/useAuth';
-import { useLanguage } from './i18n/LanguageContext';
+import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import { SoundscapeProvider } from './store/SoundscapeContext';
 import { TestProvider, useTest } from './store/TestContext';
 import { SoundControl } from './components/layout/SoundControl';
+import { AuthPromptModal } from './components/AuthPromptModal';
 
 // Lazy load pages for code splitting
 const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
@@ -52,6 +52,8 @@ function AppContent() {
   const { t } = useLanguage();
   const { isPurchaseModalOpen, setIsPurchaseModalOpen, fetchUserPoints } = useTest();
   const [pendingReport, setPendingReport] = useState<any>(null);
+  const [isAuthPromptOpen, setIsAuthPromptOpen] = useState(false);
+  const [pendingNavigate, setPendingNavigate] = useState<Page | null>(null);
 
   // Fetch daily status and streak
   useEffect(() => {
@@ -73,6 +75,10 @@ function AppContent() {
           }
         })
         .catch(err => console.error("Error fetching daily status:", err));
+    } else {
+      // Reset state on logout
+      setStreak(0);
+      setLoopStage('calibration');
     }
   }, [profile?.uid]);
 
@@ -148,6 +154,16 @@ function AppContent() {
       }
 
       const cleanPath = path.replace('/', '') || 'home';
+      
+      // Guard the test page for URL/Navigation access
+      if (cleanPath === 'test' && !profile?.uid) {
+        setPendingNavigate('test');
+        setIsAuthPromptOpen(true);
+        setCurrentPage('home');
+        window.history.replaceState(null, '', '/');
+        return;
+      }
+
       const validPages: Page[] = ['home', 'test', 'report', 'profile', 'history', 'admin', 'admin-login', 'ocean'];
       if (validPages.includes(cleanPath as Page)) {
         setCurrentPage(cleanPath as Page);
@@ -162,16 +178,30 @@ function AppContent() {
     // Listen for back/forward buttons
     window.addEventListener('popstate', handleLocationChange);
     return () => window.removeEventListener('popstate', handleLocationChange);
-  }, []);
+  }, [profile?.uid]);
 
   const navigate = (page: Page | string) => {
     const isSubPath = page.includes('/');
     const basePage = isSubPath ? page.split('/')[0] : page;
     
+    // Guard the test page
+    if (basePage === 'test' && !profile?.uid) {
+      setPendingNavigate('test');
+      setIsAuthPromptOpen(true);
+      return;
+    }
+
     setCurrentPage(basePage as Page);
     const path = page === 'home' ? '/' : `/${page}`;
     if (window.location.pathname !== path) {
       window.history.pushState(null, '', path);
+    }
+  };
+
+  const handleAuthSuccess = () => {
+    if (pendingNavigate) {
+      navigate(pendingNavigate);
+      setPendingNavigate(null);
     }
   };
 
@@ -204,7 +234,6 @@ function AppContent() {
     <div className="relative min-h-screen selection:bg-wood/10 overflow-x-hidden">
       <SEOManager />
       <KomorebiBackground />
-      <EnergyStatus />
       
       <Suspense fallback={<SanctuaryLoader />}>
         <AnimatePresence mode="wait">
@@ -233,6 +262,12 @@ function AppContent() {
         onSuccess={() => {
           fetchUserPoints();
         }}
+      />
+
+      <AuthPromptModal 
+        isOpen={isAuthPromptOpen} 
+        onClose={() => setIsAuthPromptOpen(false)}
+        onSuccess={handleAuthSuccess}
       />
       
       <ConnectionStatus />
@@ -292,13 +327,10 @@ function AppContent() {
   );
 }
 
-import { NotificationManager } from './components/NotificationManager';
-
 export default function App() {
   return (
     <SoundscapeProvider>
       <AppContent />
-      <NotificationManager />
     </SoundscapeProvider>
   );
 }
