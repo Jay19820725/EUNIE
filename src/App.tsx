@@ -20,7 +20,6 @@ const EnergyTest = lazy(() => import('./pages/EnergyTest').then(m => ({ default:
 const EnergyReport = lazy(() => import('./pages/EnergyReport').then(m => ({ default: m.EnergyReport })));
 const UserProfile = lazy(() => import('./pages/UserProfile').then(m => ({ default: m.UserProfile })));
 const EnergyTimeline = lazy(() => import('./pages/EnergyTimeline').then(m => ({ default: m.EnergyTimeline })));
-const Manifestations = lazy(() => import('./pages/Manifestations').then(m => ({ default: m.Manifestations })));
 const Ocean = lazy(() => import('./pages/Ocean').then(m => ({ default: m.Ocean })));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const AdminLogin = lazy(() => import('./pages/AdminLogin').then(m => ({ default: m.AdminLogin })));
@@ -50,7 +49,7 @@ function AppContent() {
 
   const { profile } = useAuth();
   const { t } = useLanguage();
-  const { isPurchaseModalOpen, setIsPurchaseModalOpen, fetchUserPoints } = useTest();
+  const { isPurchaseModalOpen, setIsPurchaseModalOpen, fetchUserPoints, setReportType } = useTest();
   const [pendingReport, setPendingReport] = useState<any>(null);
   const [isAuthPromptOpen, setIsAuthPromptOpen] = useState(false);
   const [pendingNavigate, setPendingNavigate] = useState<Page | null>(null);
@@ -65,13 +64,8 @@ function AppContent() {
           if (data.isCompletedToday) {
             setLoopStage('completed');
           } else {
-            // If not completed today, check where they are in the loop
-            const lastStage = localStorage.getItem('lastLoopStage') as LoopStage;
-            if (lastStage && lastStage !== 'completed') {
-              setLoopStage(lastStage);
-            } else {
-              setLoopStage('calibration');
-            }
+            // If not completed today, use the synced loopStage from backend
+            setLoopStage(data.loopStage || 'calibration');
           }
         })
         .catch(err => console.error("Error fetching daily status:", err));
@@ -82,12 +76,22 @@ function AppContent() {
     }
   }, [profile?.uid]);
 
-  // Save loopStage to localStorage
+  // Save loopStage to backend if logged in, else localStorage
   useEffect(() => {
-    if (loopStage) {
+    if (!loopStage) return;
+
+    if (profile?.uid) {
+      // Sync to backend
+      fetch(`/api/users/${profile.uid}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loop_stage: loopStage })
+      }).catch(err => console.error("Error syncing loopStage:", err));
+    } else {
+      // Fallback to localStorage for guests
       localStorage.setItem('lastLoopStage', loopStage);
     }
-  }, [loopStage]);
+  }, [loopStage, profile?.uid]);
 
   // 根據當前頁面更新閉環階段
   useEffect(() => {
@@ -97,8 +101,7 @@ function AppContent() {
       setLoopStage('resonance');
     } else if (currentPage === 'ocean') {
       setLoopStage('reflection');
-    } else if (currentPage === 'history' || currentPage === 'journal' || currentPage === 'manifestations') {
-      // Only set to completed if they were in reflection or already completed
+    } else if (currentPage === 'history') {
       setLoopStage('completed');
     }
   }, [currentPage]);
@@ -217,7 +220,17 @@ function AppContent() {
   const renderPage = () => {
     switch (currentPage) {
       case 'home':
-        return <Home onStartTest={() => navigate('test')} onNavigate={navigate} loopStage={loopStage} streak={streak} />;
+        return (
+          <Home 
+            onStartTest={(type) => {
+              if (type) setReportType(type);
+              navigate('test');
+            }} 
+            onNavigate={navigate} 
+            loopStage={loopStage} 
+            streak={streak} 
+          />
+        );
       case 'test':
         return <EnergyTest onComplete={() => navigate('report')} />;
       case 'report':
@@ -261,8 +274,6 @@ function AppContent() {
       <Navigation 
         currentPath={currentPage} 
         onNavigate={(path) => navigate(path as Page)} 
-        loopStage={loopStage}
-        onStartTest={() => navigate('test')}
       />
       
       <PurchaseModal 

@@ -95,9 +95,12 @@ export interface AnalysisReport {
   todayTheme?: string;
   cardInterpretation?: string;
   psychologicalInsight?: string;
+  manifestationGuidance?: string;
+  energyObstacles?: string;
   fiveElementAnalysis?: string;
   reflection?: string;
   actionSuggestion?: string;
+  soulQuote?: string;
   shareThumbnail?: string;
 
   // Multilingual Content
@@ -109,6 +112,7 @@ export interface AnalysisReport {
       fiveElementAnalysis: string;
       reflection: string;
       actionSuggestion: string;
+      soulQuote: string;
       pairInterpretations: { pair_id: string; text: string }[];
     };
     'ja-JP': {
@@ -118,6 +122,7 @@ export interface AnalysisReport {
       fiveElementAnalysis: string;
       reflection: string;
       actionSuggestion: string;
+      soulQuote: string;
       pairInterpretations: { pair_id: string; text: string }[];
     };
   };
@@ -128,6 +133,12 @@ export interface AnalysisReport {
   
   isGuest?: boolean;
   isAiComplete?: boolean;
+  reportType?: 'daily' | 'wish';
+  wishContext?: {
+    category: string;
+    target: string;
+    content: string;
+  };
 }
 
 export type UserRole = 'guest' | 'free_member' | 'premium_member' | 'admin';
@@ -145,6 +156,8 @@ export interface UserProfile {
   subscription_expiry?: string;
   trial_start_date?: string;
   last_login?: string;
+  language?: string;
+  loop_stage?: string;
   default_bottle_nickname?: string;
   settings?: {
     daily_reminder: boolean;
@@ -220,7 +233,7 @@ export interface ChatMessage {
   energyUpdate?: FiveElementValues;
 }
 
-export type DrawStage = 'idle' | 'shuffling' | 'drawing_images' | 'drawing_words' | 'pairing' | 'associating' | 'revealed';
+export type DrawStage = 'idle' | 'wish_input' | 'shuffling' | 'drawing_images' | 'drawing_words' | 'pairing' | 'associating' | 'revealed';
 
 export type EnergyReportData = AnalysisReport;
 

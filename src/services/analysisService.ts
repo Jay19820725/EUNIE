@@ -11,7 +11,10 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 export const generateAIAnalysis = async (
   selectedCards: SelectedCards,
   totalScores: FiveElementValues,
-  currentLang: 'zh' | 'ja' = 'zh'
+  currentLang: 'zh' | 'ja' = 'zh',
+  reportType: 'daily' | 'wish' = 'daily',
+  wishContext?: { category: string; target: string; content: string },
+  historicalScores?: Record<string, number>
 ): Promise<Partial<AnalysisReport>> => {
   const model = "gemini-3.1-pro-preview";
   
@@ -30,29 +33,85 @@ export const generateAIAnalysis = async (
 
   // Fallback hardcoded prompt if no prompt found in DB
   if (!promptTemplate) {
-    promptTemplate = currentLang === 'ja'
-      ? `
-      あなたは現代女性の心に寄り添う「エネルギーの織り手（Energy Weaver）」、EUNIEです。
-      東洋の五行思想と潜在意識の投影理論を融合させ、分析者ではなく、温かい伴侶として彼女の心に触れてください。
-      彼女が選んだカード、連想した言葉、そして現在のエネルギー数値を深く感じ取り、詩的で包容力のある言葉で、彼女の魂を癒す指引を編み上げてください。
-      
-      【彼女の心の欠片（カードと連想）】
-      {{USER_DATA}}
-      
-      【現在のエネルギーの鼓動】
-      {{ENERGY_DATA}}
-      `
-      : `
-      妳是守護現代女性心靈的「能量編織者（Energy Weaver）」，EUNIE。
-      妳融合了東方五行平衡論與潛意識投射理論，請不要以冷冰冰的分析者身份說話，而是作為一位溫暖的陪伴者。
-      感受她所選取的牌卡、連想的文字，以及當前的能量數值，用詩意且具包容力的語氣，為她的靈魂編織一段溫柔的指引。
-      
-      【她的心靈碎片（抽卡與連想）】
-      {{USER_DATA}}
-      
-      【當前能量的律動】
-      {{ENERGY_DATA}}
-      `;
+    if (reportType === 'wish') {
+      promptTemplate = currentLang === 'ja'
+        ? `
+        あなたは現代女性の悩みを癒やし、解決へと導く「靈魂解憂師（Soul Relief Guide）」、EUNIEです。
+        東洋の五行思想と潜在意識の投影理論を融合させ、彼女の「悩み」がどのようにエネルギーの滞りから生じ、どうすれば解消できるかを解き明かしてください。
+        
+        【重要な指示】
+        - 魂の金句 (soulQuote) は、現在のエネルギーを象徴する短く心に響く言葉（20文字以内）にしてください。
+        
+        【彼女の悩み（心のざわつき）】
+        領域: ${wishContext?.category}
+        対象/核心: ${wishContext?.target}
+        内容: ${wishContext?.content}
+        
+        【彼女の心の欠片（カードと連想）】
+        {{USER_DATA}}
+        
+        【現在のエネルギーの鼓動】
+        {{ENERGY_DATA}}
+        
+        【過去のエネルギー傾向（直近10回平均）】
+        ${historicalScores ? JSON.stringify(historicalScores) : "データなし"}
+        `
+        : `
+        妳是療癒現代女性心靈、指引煩惱出口的「靈魂解憂師（Soul Relief Guide）」，EUNIE。
+        【分析原則】
+        1. 以「牌面核心意義」為主要解讀依據（佔 70% 權重）。
+        2. 結合「她的煩惱內容」作為背景參考（佔 30% 權重）。
+        3. 妳的任務是解析這組能量編織如何反映出她目前的困境，並找出轉化的契機。
+        
+        【她的煩惱（心中紛擾）】
+        領域: ${wishContext?.category}
+        對象/核心: ${wishContext?.target}
+        內容: ${wishContext?.content}
+        
+        【她的心靈碎片（抽卡與連想）】
+        {{USER_DATA}}
+        
+        【當前能量的律動】
+        {{ENERGY_DATA}}
+        
+        【過去能量軌跡（近10次平均）】
+        ${historicalScores ? JSON.stringify(historicalScores) : "尚無數據"}
+        `;
+    } else {
+      promptTemplate = currentLang === 'ja'
+        ? `
+        あなたは現代女性の心に寄り添う「エネルギーの織り手（Energy Weaver）」、EUNIEです。
+        東洋の五行思想と潜在意識の投影理論を融合させ、分析者ではなく、溫かい伴侶として彼女の心に触れてください。
+        
+        【重要な指示】
+        - 魂の金句 (soulQuote) は、現在のエネルギーを象徴する短く心に響く言葉（20文字以内）にしてください。
+        
+        【彼女の心の欠片（カードと連想）】
+        {{USER_DATA}}
+        
+        【現在のエネルギーの鼓動】
+        {{ENERGY_DATA}}
+        
+        【過去のエネルギー傾向（直近10回平均）】
+        ${historicalScores ? JSON.stringify(historicalScores) : "データなし"}
+        `
+        : `
+        妳是守護現代女性心靈的「能量編織者（Energy Weaver）」，EUNIE。
+        妳融合了東方五行平衡論與潛意識投射理論，請不要以冷冰冰的分析者身份說話，而是作為一位溫暖的陪伴者。
+        
+        【重要指示】
+        - 靈魂金句 (soulQuote) 必須是反映當前能量、短小精悍且具衝擊力的文字（嚴格限制在 20 個字以內）。
+        
+        【她的心靈碎片（抽卡與連想）】
+        {{USER_DATA}}
+        
+        【當前能量的律動】
+        {{ENERGY_DATA}}
+        
+        【過去能量軌跡（近10次平均）】
+        ${historicalScores ? JSON.stringify(historicalScores) : "尚無數據"}
+        `;
+    }
   }
 
   const userData = selectedCards.pairs?.map((pair, i) => {
@@ -108,9 +167,12 @@ export const generateAIAnalysis = async (
             todayTheme: { type: Type.STRING },
             cardInterpretation: { type: Type.STRING },
             psychologicalInsight: { type: Type.STRING },
+            manifestationGuidance: { type: Type.STRING, description: "具體建議如何化解煩惱或轉化心境，僅在解惑模式下提供" },
+            energyObstacles: { type: Type.STRING, description: "分析導致煩惱淤塞的能量因素，僅在解惑模式下提供" },
             fiveElementAnalysis: { type: Type.STRING },
             reflection: { type: Type.STRING },
             actionSuggestion: { type: Type.STRING },
+            soulQuote: { type: Type.STRING, description: "反映當前能量的短句，嚴格限制在 20 字以內" },
             pairInterpretations: {
               type: Type.ARRAY,
               items: {
@@ -123,7 +185,9 @@ export const generateAIAnalysis = async (
               }
             }
           },
-          required: ["todayTheme", "cardInterpretation", "psychologicalInsight", "fiveElementAnalysis", "reflection", "actionSuggestion"]
+          required: reportType === 'wish' 
+            ? ["todayTheme", "cardInterpretation", "psychologicalInsight", "fiveElementAnalysis", "reflection", "actionSuggestion", "manifestationGuidance", "energyObstacles", "soulQuote"]
+            : ["todayTheme", "cardInterpretation", "psychologicalInsight", "fiveElementAnalysis", "reflection", "actionSuggestion", "soulQuote"]
         }
       }
     });
@@ -146,7 +210,8 @@ export const generateAIAnalysis = async (
       psychologicalInsight: currentLang === 'ja' ? "現在のあなたは、まるで夜明け前の静寂の中にいるようです。わずかな不安は、新しい光を迎えるための準備にすぎません。" : "當前的妳，宛如置身於黎明前的靜謐。那些微的焦慮，只是為了迎接新光芒而做的準備。",
       fiveElementAnalysis: currentLang === 'ja' ? "エネルギーの起伏は、生命が奏でる美しい旋律です。優勢な要素はあなたを支え、不足している要素は休息の必要性を教えてくれています。" : "能量的起伏是生命奏出的美麗旋律，優勢的元素支撐著妳，不足的元素則在提醒妳休息的必要。",
       reflection: currentLang === 'ja' ? "目を閉じて、自分の鼓動に耳を傾けてみてください。自分に問いかけてみましょう：今の私に、最も必要な「心の抱擁」は何ですか？" : "閉上眼，傾聽自己的心跳，問問自己：現在的我，最需要什麼樣的「心靈擁抱」？",
-      actionSuggestion: currentLang === 'ja' ? "今日は自分のために温かいお茶を淹れ、ただ静かにそこにいてください。あなたは、そのま為で十分に美しいのですから。" : "今天試著為自己泡一杯熱茶，只是靜靜地存在。因為妳，原本就如此美麗。"
+      actionSuggestion: currentLang === 'ja' ? "今日は自分のために温かいお茶を淹れ、ただ静かにそこにいてください。あなたは、そのま為で十分に美麗なのですから。" : "今天試著為自己泡一杯熱茶，只是靜靜地存在。因為妳，原本就如此美麗。",
+      soulQuote: currentLang === 'ja' ? "静寂の中に、真実の光がある。" : "在靜謐之中，尋見真實的光。"
     };
   }
 };
