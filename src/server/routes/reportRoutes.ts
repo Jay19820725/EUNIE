@@ -25,7 +25,7 @@ router.get("/history/:userId", async (req, res) => {
 
   try {
     const result = await pool.query(
-      "SELECT report_data->'totalScores' as total_scores, report_data->>'reportType' as report_type, report_data->>'soulQuote' as soul_quote, report_data->'psychologicalInsight' as psychological_insight, dominant_element, weak_element, balance_score, timestamp FROM energy_reports WHERE user_id = $1 ORDER BY timestamp DESC LIMIT $2",
+      "SELECT report_data->'totalScores' as total_scores, report_data->>'reportType' as report_type, report_data->'psychologicalInsight' as psychological_insight, dominant_element, weak_element, balance_score, timestamp FROM energy_reports WHERE user_id = $1 ORDER BY timestamp DESC LIMIT $2",
       [userId, limit]
     );
     res.json(result.rows);

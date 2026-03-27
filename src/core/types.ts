@@ -100,7 +100,6 @@ export interface AnalysisReport {
   fiveElementAnalysis?: string;
   reflection?: string;
   actionSuggestion?: string;
-  soulQuote?: string;
   shareThumbnail?: string;
 
   // Multilingual Content
@@ -112,7 +111,6 @@ export interface AnalysisReport {
       fiveElementAnalysis: string;
       reflection: string;
       actionSuggestion: string;
-      soulQuote: string;
       pairInterpretations: { pair_id: string; text: string }[];
     };
     'ja-JP': {
@@ -122,7 +120,6 @@ export interface AnalysisReport {
       fiveElementAnalysis: string;
       reflection: string;
       actionSuggestion: string;
-      soulQuote: string;
       pairInterpretations: { pair_id: string; text: string }[];
     };
   };
@@ -234,6 +231,8 @@ export interface ChatMessage {
 }
 
 export type DrawStage = 'idle' | 'wish_input' | 'shuffling' | 'drawing_images' | 'drawing_words' | 'pairing' | 'associating' | 'revealed';
+
+export type LoopStage = 'calibration' | 'resonance' | 'reflection' | 'completed';
 
 export type EnergyReportData = AnalysisReport;
 

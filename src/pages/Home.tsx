@@ -4,7 +4,7 @@ import { Button } from '../components/ui/Button';
 import { Wind, ArrowRight, Activity, Zap } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useAuth } from '../hooks/useAuth';
-import { LoopStage } from '../App';
+import { LoopStage } from '../core/types';
 import { AuthPromptModal } from '../components/AuthPromptModal';
 
 interface HomeProps {
@@ -52,16 +52,8 @@ const EnergyField = () => (
   </div>
 );
 
-const StatusCard = ({ title, value, icon: Icon, delay = 0, onClick, truncateLimit = 45 }: { 
-  title: string; 
-  value: string; 
-  icon: any; 
-  delay?: number; 
-  onClick?: () => void;
-  truncateLimit?: number;
-}) => {
-  const isLongText = value.length > truncateLimit;
-  const displayValue = isLongText ? `${value.substring(0, truncateLimit)}...` : value;
+const StatusCard = ({ title, value, icon: Icon, delay = 0, onClick }: { title: string; value: string; icon: any; delay?: number; onClick?: () => void }) => {
+  const isLongText = value.length > 45;
 
   return (
     <motion.div
@@ -81,7 +73,7 @@ const StatusCard = ({ title, value, icon: Icon, delay = 0, onClick, truncateLimi
         </div>
       </div>
       <div className={`text-xl md:text-2xl font-serif text-ink/80 tracking-wide font-light transition-all duration-500 ${onClick && isLongText ? 'line-clamp-3' : ''}`}>
-        {displayValue}
+        {value}
       </div>
       {onClick && isLongText && (
         <div className="text-[8px] tracking-[0.2em] text-ink/20 uppercase font-medium mt-[-4px] group-hover:text-ink/40 transition-colors">
@@ -200,11 +192,13 @@ export const Home: React.FC<HomeProps> = ({ onStartTest, loopStage, onNavigate, 
     return t('home_oracle_balanced');
   };
 
-  const getSoulQuote = () => {
-    if (!latestReport) return t('home_yesterday_none');
-    // Prefer soul_quote (from history API) or soulQuote (from report_data)
-    const quote = latestReport.soul_quote || latestReport.soulQuote || latestReport.psychological_insight || latestReport.psychologicalInsight;
-    return quote || t('home_yesterday_none');
+  const getSoulQuote = (truncate = false) => {
+    if (!latestReport || !latestReport.psychological_insight) return t('home_yesterday_none');
+    const quote = latestReport.psychological_insight;
+    if (truncate && quote.length > 20) {
+      return quote.substring(0, 20) + '...';
+    }
+    return quote;
   };
 
   const getStatusText = () => {
@@ -293,11 +287,10 @@ export const Home: React.FC<HomeProps> = ({ onStartTest, loopStage, onNavigate, 
             />
             <StatusCard 
               title={t('home_dashboard_soul_quote')} 
-              value={getSoulQuote()} 
+              value={getSoulQuote(true)} 
               icon={Activity} 
               delay={1.9}
               onClick={() => setIsQuoteModalOpen(true)}
-              truncateLimit={20}
             />
           </div>
 
