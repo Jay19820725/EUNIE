@@ -27,25 +27,18 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onSuccess }) => {
     setError(null);
 
     try {
-      // In a real app, this would be a server-side check.
-      // For this implementation, we'll use a secret key from environment variables.
-      const adminKey = import.meta.env.VITE_ADMIN_SECRET_KEY || 'lumina-admin-2024';
+      console.log("AdminLogin: Verifying secret key with server for:", user.uid);
+      const updatedProfile = await userService.promoteToAdmin(user.uid, password);
       
-      if (password === adminKey) {
-        console.log("AdminLogin: Key matched, updating role for:", user.uid);
-        const updatedProfile = await userService.updateRole(user.uid, 'admin');
-        setProfile(updatedProfile);
-        setStatus('success');
-        setTimeout(() => {
-          if (onSuccess) {
-            onSuccess();
-          } else {
-            window.location.href = '/';
-          }
-        }, 2000);
-      } else {
-        throw new Error('管理者金鑰不正確。');
-      }
+      setProfile(updatedProfile);
+      setStatus('success');
+      setTimeout(() => {
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          window.location.href = '/';
+        }
+      }, 2000);
     } catch (err: any) {
       console.error('Admin login failed:', err);
       setError(err.message || '認證失敗。');

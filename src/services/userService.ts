@@ -72,7 +72,43 @@ export const userService = {
   },
 
   /**
-   * Update user role
+   * Promote user to admin role using secret key
+   */
+  async promoteToAdmin(uid: string, secretKey: string): Promise<UserProfile> {
+    const response = await fetch('/api/users/promote-admin', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ uid, secretKey }),
+    });
+
+    const contentType = response.headers.get("content-type");
+    let data: any;
+
+    if (contentType && contentType.includes("application/json")) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      console.error("Server returned non-JSON response:", text);
+      throw new Error(`伺服器錯誤 (${response.status}): 傳回了非 JSON 格式的回應。`);
+    }
+
+    if (!response.ok) {
+      throw new Error(data.error || `認證失敗 (${response.status})`);
+    }
+
+    return {
+      ...data,
+      displayName: data.display_name,
+      photoURL: data.photo_url,
+      settings: data.settings || { daily_reminder: false, dark_mode: false, newsletter: false }
+    } as UserProfile;
+  },
+
+  /**
+   * Update user role (Internal use/Legacy - Backend now restricts this)
+   * @deprecated Use specific promotion methods for sensitive roles
    */
   async updateRole(uid: string, role: UserRole): Promise<UserProfile> {
     const response = await fetch(`/api/users/${uid}`, {
