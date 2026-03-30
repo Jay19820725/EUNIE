@@ -18,8 +18,33 @@ router.get("/:uid", async (req, res) => {
   }
 });
 
+router.post("/promote-admin", async (req, res) => {
+  const { uid, secretKey } = req.body;
+  const adminSecret = process.env.ADMIN_SECRET_KEY || 'lumina-admin-2024';
+
+  if (!secretKey || secretKey !== adminSecret) {
+    console.warn(`Unauthorized admin promotion attempt for user: ${uid}`);
+    return res.status(403).json({ error: "Invalid admin secret key" });
+  }
+
+  try {
+    const result = await pool.query(
+      "UPDATE users SET role = 'admin' WHERE uid = $1 RETURNING *",
+      [uid]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    console.log(`User ${uid} promoted to admin successfully`);
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error promoting user to admin:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.post("/", async (req, res) => {
-  const { uid, email, displayName, photoURL, role, subscription_status, points, subscription_tier, is_first_purchase, language, loop_stage } = req.body;
+  const { uid, email, displayName, photoURL, subscription_status, points, subscription_tier, is_first_purchase, language, loop_stage } = req.body;
   console.log("POST /api/users - Body:", req.body);
   try {
     const result = await pool.query(
@@ -36,7 +61,7 @@ router.post("/", async (req, res) => {
         email, 
         displayName, 
         photoURL, 
-        role || 'free_member', 
+        'free_member', // Security: Default to free_member, role cannot be set via this endpoint
         subscription_status || 'none',
         points !== undefined ? points : 1,
         subscription_tier || 'none',
@@ -71,12 +96,16 @@ router.get("/:uid/points", async (req, res) => {
 
 router.patch("/:uid", async (req, res) => {
   const { uid } = req.params;
-  const updates = req.body;
+  const updates = { ...req.body };
+
+  // Security: Prevent updating sensitive fields via general PATCH endpoint
+  delete updates.role;
+
   const fields = Object.keys(updates);
   
   console.log(`PATCH /api/users/${uid} - Updates:`, updates);
   
-  if (fields.length === 0) return res.status(400).json({ error: "No fields to update" });
+  if (fields.length === 0) return res.status(400).json({ error: "No fields to update or unauthorized fields" });
 
   const setClause = fields.map((f, i) => {
     const colName = f === 'displayName' ? 'display_name' : f === 'photoURL' ? 'photo_url' : f;
